@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_margin="8dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:weightSum="4">
+
+                <LinearLayout
+                    android:layout_weight="3"
+                    android:id="@+id/search_Container"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:weightSum="2"
+                    android:orientation="vertical">
+                    <AutoCompleteTextView
+                        android:drawableLeft="@drawable/ic_add_location_black_24dp"
+                        android:background="@drawable/shape"
+                        android:paddingLeft="8dp"
+                        android:layout_weight="1"
+                        android:layout_marginBottom="5dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:hint="Enter Origin"
+                        android:id="@+id/editTextOrigin"
+                        android:drawableStart="@drawable/ic_add_location_black_24dp"
+                        android:paddingStart="8dp" />
+
+                    <AutoCompleteTextView
+                        android:background="@drawable/shape"
+                        android:drawableLeft="@drawable/ic_pin_drop_black_24dp"
+                        android:paddingLeft="8dp"
+                        android:layout_weight="1"
+                        android:layout_marginBottom="5dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:hint="Enter Destination"
+                        android:id="@+id/editTextDestination"/>
+                </LinearLayout>
+                <Button
+                    android:id="@+id/buttonFindPath"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="Find Path"
+                    android:layout_gravity="center"
+                    android:paddingRight="15dp"
+                    android:layout_marginRight="20dp"/>
+            </LinearLayout>
+
+        </RelativeLayout>
+
+
+
+        <fragment xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:map="http://schemas.android.com/apk/res-auto"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:id="@+id/map"
+            android:name="com.google.android.gms.maps.SupportMapFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:context=".Map.MapsActivity" />
+
+    </LinearLayout>
+
+
+    <!-- Adding bottom sheet after main content -->
+    <include layout="@layout/bottom_sheet" />
+
+</android.support.design.widget.CoordinatorLayout>
