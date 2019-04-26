@@ -9,7 +9,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 
 
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -31,6 +30,13 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 
@@ -53,8 +59,13 @@ import com.neuroid.gmap.Modules.Route;
 import com.neuroid.gmap.R;
 import com.neuroid.gmap.adapter.ReviewAdapter;
 import com.neuroid.gmap.db.DBManager;
+import com.neuroid.gmap.model.Difficulty;
 import com.neuroid.gmap.model.Review;
 
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +88,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Button btnFindPath;
     private AutoCompleteTextView editTextOrigin;
     private AutoCompleteTextView editTextDestination;
-    private TextView tvDistance,tvDuration,tvFrom,tvDestination;
+    private TextView tvDistance,tvDuration,tvFrom,tvDestination,tvDifficultyScore;
     private View bottomSheet;
 
     private List<Marker> originMarkers = new ArrayList<>();
@@ -109,7 +120,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     String originSt,destOr;
 
-
+    String GOOGLE_BROWSER_API_KEY = "AIzaSyAoCYbp3vnbsszqEZMAIB9yRf1ZNgjOA8c";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -146,6 +157,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         tvDuration = findViewById(R.id.tvDuration);
         tvFrom = findViewById(R.id.tvFrom);
         dialogbtn = findViewById(R.id.dialogReviewBtn);
+        tvDifficultyScore = findViewById(R.id.tvDifficultyScore);
 
         dialogbtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -200,37 +212,32 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-//        mAdapter = new PlaceAutocompleteAdapter(this, mGeoDataClient, BOUNDS_INDIA, null);
-//        editTextOrigin.setAdapter(mAdapter);
 
-//        getFeedBacks();
+
+
+        fetchNearbyPlaces();
 
     }
 
     private void initializeMapDatabase() {
 
-        dbManager.insert("thrissur","akkikkavu","Route1","Nice Route","45");
-        dbManager.insert("thrissur","akkikkavu","Route1","Bad Route","45");
-        dbManager.insert("thrissur","akkikkavu","Route1","Good Road","45");
-        dbManager.insert("thrissur","akkikkavu","Route2","Traffic Route","45");
-        dbManager.insert("thrissur","akkikkavu","Route2","Very Bad Route","45");
-        dbManager.insert("thrissur","akkikkavu","Route2","Satisfactory Route","45");
+        dbManager.insert("thrissur","akkikkavu","Route1","Nice Route","0.2");
+        dbManager.insert("thrissur","akkikkavu","Route1","Bad Route","0.6");
+        dbManager.insert("thrissur","akkikkavu","Route1","Good Road","0.3");
+        dbManager.insert("thrissur","akkikkavu","Route2","Traffic Route","0.8");
+        dbManager.insert("thrissur","akkikkavu","Route2","Very Bad Route","0.7");
+        dbManager.insert("thrissur","akkikkavu","Route2","Satisfactory Route","0.5");
 
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Satisfactory Route","45");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Bad Route","45");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","High Traffic Route","45");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Nice Route","45");
-
-
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Satisfactory Route","45");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Bad Route","45");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","High Traffic Route","45");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Nice Route","45");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Satisfactory Route","0.5");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Bad Route","0.6");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route2","High Traffic Route","0.8");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Nice Route","0.1");
 
 
-        Cursor cursor = dbManager.fetch();
-
-        Log.d("db", String.valueOf(cursor.getCount()));
+        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Satisfactory Route","0.5");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Bad Route","0.8");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route1","High Traffic Route","0.9");
+        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Nice Route","0.1");
 
     }
 
@@ -351,6 +358,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             String fromAdd  ="From  :  " + route.startAddress;
             String destAdd  ="Destination  :  " + route.endAddress;
 
+
+
             tvFrom.setText(fromAdd);
             tvDestination.setText(destAdd);
 
@@ -387,6 +396,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             polylineData.add(new PolylineData(polyLinePaths.get(x),route, rid ));
             x++;
         }
+
+
+        LatLng endAdd = routes.get(0).endLocation;
+        Log.d(TAG, String.valueOf(routes.get(0)));
+//        fetchNearbyPlaces(endAdd.latitude,endAdd.longitude);
         recyclerView = findViewById(R.id.recyclerReview);
 
 
@@ -396,8 +410,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void setReviewList() {
-        List<Review> newreviewList = new ArrayList<>();
+        List<Review> newreviewList ;
         newreviewList = dbManager.fetchData(originSt,destOr,Common.RID);
+        String difScore = calculateDifficulty();
+        tvDifficultyScore.setText(difScore);
+
         mAdapter = new ReviewAdapter(newreviewList,MapsActivity.this);
         RecyclerView.LayoutManager mLayoutManager = new LinearLayoutManager(getApplicationContext());
         recyclerView.setLayoutManager(mLayoutManager);
@@ -406,6 +423,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // set the adapter
         recyclerView.setAdapter(mAdapter);
         mAdapter.notifyDataSetChanged();
+    }
+
+    private String calculateDifficulty() {
+        List<Difficulty> difficultyList;
+        difficultyList = dbManager.fetchScore(originSt,destOr,Common.RID);
+
+        int scoreList = difficultyList.size();
+        double value = 0;
+
+        if(scoreList ==0){
+            scoreList =1;
+            value = 0.5;
+        }
+
+        for(Difficulty difficulty:difficultyList){
+           double score = Double.parseDouble(difficulty.getScore());
+           value = value + score;
+        }
+
+        value = value/scoreList;
+        return String.valueOf(value);
     }
 
 
@@ -455,6 +493,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 String review = edAddReview.getText().toString();
                 if(!review.isEmpty()){
+                    String dScore = getDifficultyScore(review);
                     dbManager.insert(originSt,destOr,Common.RID,review,"20");
                     setReviewList();
                     Toast.makeText(MapsActivity.this,"Review Added",Toast.LENGTH_SHORT).show();
@@ -471,6 +510,32 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
 
     }
+
+    private String getDifficultyScore(String review) {
+        String newScore = "";
+
+        if(review.toLowerCase().contains("very bad")){
+            newScore = "0.8";
+        } else if(review.toLowerCase().contains("bad")){
+            newScore = "0.6";
+        } else  if(review.toLowerCase().contains("traffic")){
+            newScore = "0.7";
+        } else  if( review.toLowerCase().contains("nice")){
+            newScore = "0.3";
+        } else  if( review.toLowerCase().contains("good")){
+            newScore = "0.1";
+        } else  if (review.toLowerCase().contains("heavy")){
+            newScore = "0.8";
+        } else  if(review.toLowerCase().contains("bad road")){
+            newScore = "0.7";
+        } else if (review.toLowerCase().contains("conjunction")) {
+            newScore = "0.4";
+        } else if (review.toLowerCase().contains("rush")){
+            newScore = "0.6";
+        }
+        return  newScore;
+    }
+
     /* Initialize popup dialog view and ui controls in the popup dialog. */
     private void initPopupViewControls()
     {
@@ -489,6 +554,104 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //        initEditTextUserDataInPopupDialog();
     }
 
+//    private void fetchNearbyPlaces(double latitude,double longitude){
+    private void fetchNearbyPlaces(){
+        double latitude = -33.8670522;
+        double longitude = 151.1957362;
+        String type = "food";
+
+
+        String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"food"+"&key=" +GOOGLE_BROWSER_API_KEY;
+
+        RequestQueue requestQueue = Volley.newRequestQueue(MapsActivity.this);
+
+        JsonObjectRequest request = new JsonObjectRequest(
+                Request.Method.GET,
+                url,
+                null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        // Do something with response
+                        //mTextView.setText(response.toString());
+                        List<Marker> markersList = new ArrayList<Marker>();
+
+                        String placeName = "-NA-";
+                        String vicinity = "-NA-";
+
+                        Log.i(TAG, "onResponse: Result= " + response.toString());
+                        try {
+                            JSONArray resultsArray = response.getJSONArray("results");
+                            for(int i =0 ;i < resultsArray.length() ;i++ ){
+
+                                JSONObject object = resultsArray.getJSONObject(i);
+                                JSONObject geometry = object.getJSONObject("geometry");
+                                JSONObject location = geometry.getJSONObject("location");
+                                double lati = location.getDouble("lat");
+                                double lngi = location.getDouble("lng");
+
+                                LatLng latLng = new LatLng(lati, lngi);
+
+                                MarkerOptions markerOptions = new MarkerOptions();
+//                                JSONObject placeName = object.getJSONObject("name");
+
+                                if (!object.isNull("name")) {
+                                    placeName = object.getString("name");
+                                }
+                                if (!object.isNull("vicinity")) {
+                                    vicinity = object.getString("vicinity");
+                                }
+
+                                Log.d("Tagasad", String.valueOf(latLng));
+
+//                                Object vicinity = object.get("vicinity");
+                                markerOptions.position(latLng);
+                                markerOptions.title(placeName + " : " + vicinity);
+                                markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+
+                                Marker models=  mMap.addMarker(markerOptions);
+
+                                markersList.add(models);
+
+                            }
+
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+
+                        /**create for loop for get the latLngbuilder from the marker list*/
+                        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+                        for (Marker m : markersList) {
+                            builder.include(m.getPosition());
+                        }
+                        /**initialize the padding for map boundary*/
+                        int padding = 50;
+                        /**create the bounds from latlngBuilder to set into map camera*/
+                        LatLngBounds bounds = builder.build();
+                        /**create the camera with bounds and padding to set into map*/
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
+
+                        // Process the JSON
+
+                    }
+                },
+                new Response.ErrorListener(){
+                    @Override
+                    public void onErrorResponse(VolleyError error){
+                        // Do something when error occurred
+
+                    }
+                }
+        );
+
+
+        requestQueue.add(request);
+    }
+
+    private void parseLocationResult(JSONObject result) {
+
+    }
 
 
 }

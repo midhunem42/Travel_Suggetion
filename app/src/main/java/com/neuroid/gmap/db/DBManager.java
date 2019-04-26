@@ -7,6 +7,7 @@ import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
+import com.neuroid.gmap.model.Difficulty;
 import com.neuroid.gmap.model.Review;
 
 import java.util.ArrayList;
@@ -45,22 +46,7 @@ public class DBManager {
         database.insert(DatabaseHelper.TABLE_NAME, null, contentValue);
     }
 
-    public Cursor fetch() {
-        String[] columns = new String[] { DatabaseHelper._ID, DatabaseHelper.Origin, DatabaseHelper.DEST,DatabaseHelper.Routeid,DatabaseHelper.FeedBack,DatabaseHelper.DifficultyScore };
-        Cursor cursor = database.query(DatabaseHelper.TABLE_NAME, columns, null, null, null, null, null);
-        if (cursor != null) {
-            if(cursor.moveToFirst()){
-                do {
 
-                    Log.d("rows", cursor.getString(cursor.getColumnIndex("feedback")));
-                    // cursor.moveToNext();
-
-                } while (cursor.moveToNext());
-            }
-
-        }
-        return cursor;
-    }
 
     public List<Review> fetchData(String orgin, String dest , String rid){
 
@@ -85,6 +71,31 @@ public class DBManager {
             }
         }
         return reviewList;
+    }
+
+    public List<Difficulty> fetchScore(String orgin, String dest , String rid) {
+
+        List<Difficulty> difficulties  = new ArrayList<>();
+        String and =" and ";
+        String query = "fromAddress=?" + and + "destination=?" +  and + "routeId=?";
+
+        String[] conditions = {orgin,dest,rid};
+
+        String[] columns = new String[] { DatabaseHelper._ID, DatabaseHelper.Origin, DatabaseHelper.DEST,DatabaseHelper.Routeid,DatabaseHelper.FeedBack,DatabaseHelper.DifficultyScore };
+        Cursor cursor = database.query(DatabaseHelper.TABLE_NAME, columns, query, conditions, null, null, null);
+        if (cursor != null) {
+            if(cursor.moveToFirst()){
+                do {
+
+                    Log.d("rows", cursor.getString(cursor.getColumnIndex("dscore")));
+                    // cursor.moveToNext();
+                    Difficulty difficulty = new Difficulty(cursor.getString(cursor.getColumnIndex("dscore")));
+                    difficulties.add(difficulty);
+
+                } while (cursor.moveToNext());
+            }
+        }
+        return difficulties;
     }
 
     public int update(long _id, String origin,String dest,String Rid,String feedback, String score) {
