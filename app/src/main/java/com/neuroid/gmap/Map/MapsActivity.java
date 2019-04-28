@@ -9,8 +9,14 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 
 
-import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
+import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomSheetBehavior;
 import android.support.v4.app.ActivityCompat;
@@ -27,6 +33,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,9 +51,9 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
@@ -71,10 +78,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-
-
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, DirectionFinderListener, GoogleApiClient.OnConnectionFailedListener, GoogleMap.OnPolylineClickListener {
-
 
 
     @Override
@@ -82,45 +86,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    private static final int LOCATION_REQUEST=500;
+    private static final int LOCATION_REQUEST = 500;
     private GoogleMap mMap;
-
     private Button btnFindPath;
     private AutoCompleteTextView editTextOrigin;
     private AutoCompleteTextView editTextDestination;
-    private TextView tvDistance,tvDuration,tvFrom,tvDestination,tvDifficultyScore;
+    private TextView tvDistance, tvDuration, tvFrom, tvDestination, tvDifficultyScore,difficultyStatus;
     private View bottomSheet;
-
     private List<Marker> originMarkers = new ArrayList<>();
     private List<Marker> destinationMarker = new ArrayList<>();
     private List<Polyline> polyLinePaths = new ArrayList<>();
     private ProgressDialog progressDialog;
-
-    private static final LatLngBounds BOUNDS_INDIA = new LatLngBounds(new LatLng(23.63936, 68.14712), new LatLng(28.20453, 97.34466));
-
-
     private static final String TAG = "MapActivity";
-
-
-
     public ArrayList<PolylineData> polylineData = new ArrayList<>();
-    private List<Review> reviewList = new ArrayList<>();
     private RecyclerView recyclerView;
     private ReviewAdapter mAdapter;
-
-    private SQLiteDatabase sqLiteDatabase;
-
-    BottomSheetBehavior sheetBehavior;
-
-    private Button addReview,CancelButton,dialogbtn;
+    private BottomSheetBehavior sheetBehavior;
+    private Button addReview, CancelButton, dialogbtn;
     private EditText edAddReview;
     private View popupInputDialogView = null;
 
     private DBManager dbManager;
 
-    String originSt,destOr;
+    String originSt, destOr;
 
-    String GOOGLE_BROWSER_API_KEY = "AIzaSyAoCYbp3vnbsszqEZMAIB9yRf1ZNgjOA8c";
+    String GOOGLE_BROWSER_API_KEY = "AIzaSyCocMkAw5pQRhVh2JWvrYm_8sjESDuiwWQ";
+    String type = "";
+
+    ImageButton movie, cafe, rooms, petrol, mall;
+    double myLat=10.530345, myLong=76.214729;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -136,6 +131,51 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         editTextOrigin = findViewById(R.id.editTextOrigin);
         editTextDestination = findViewById(R.id.editTextDestination);
 
+        movie = findViewById(R.id.moviePlace);
+        cafe = findViewById(R.id.cafePlace);
+        rooms = findViewById(R.id.roomPlace);
+        petrol = findViewById(R.id.petrolPlace);
+        mall = findViewById(R.id.mallPlace);
+        difficultyStatus = findViewById(R.id.difficultyStatus);
+
+        cafe.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                fetchNearbyPlaces(0, myLat, myLong);
+            }
+        });
+
+        rooms.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                fetchNearbyPlaces(1, myLat, myLong);
+
+            }
+        });
+
+        petrol.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                fetchNearbyPlaces(2, myLat, myLong);
+
+            }
+        });
+
+        mall.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                fetchNearbyPlaces(4, myLat, myLong);
+
+            }
+        });
+
+        movie.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                fetchNearbyPlaces(3, myLat, myLong);
+
+            }
+        });
 
         dbManager = new DBManager(MapsActivity.this);
         dbManager.open();
@@ -143,16 +183,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SharedPreferences sharedpreferences = getSharedPreferences("Logined", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedpreferences.edit();
 
-        boolean abc= sharedpreferences.getBoolean("Logined",false);
-        if(!abc){
+        boolean abc = sharedpreferences.getBoolean("Logined", false);
+        if (!abc) {
             initializeMapDatabase();
 
         }
-        editor.putBoolean("Logined",true);
+        editor.putBoolean("Logined", true);
         editor.commit();
 
 
-        tvDestination =findViewById(R.id.tvDestination);
+        tvDestination = findViewById(R.id.tvDestination);
         tvDistance = findViewById(R.id.tvDistance);
         tvDuration = findViewById(R.id.tvDuration);
         tvFrom = findViewById(R.id.tvFrom);
@@ -171,20 +211,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onClick(View v) {
                 View view = getCurrentFocus();
                 if (view != null) {
-                    InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                     imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
                 }
                 sendRequest();
             }
         });
 
-        bottomSheet =findViewById(R.id.bottom_sheet);
+        bottomSheet = findViewById(R.id.bottom_sheet);
         sheetBehavior = BottomSheetBehavior.from(bottomSheet);
 
         /**
          * bottom sheet state change listener
          * we are changing button text when sheet changed state
          * */
+        View view = findViewById(R.id.expandedView);
         sheetBehavior.setBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
             @Override
             public void onStateChanged(@NonNull View bottomSheet, int newState) {
@@ -193,10 +234,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         break;
                     case BottomSheetBehavior.STATE_EXPANDED: {
 //                        btnBottomSheet.setText("Close Sheet");
+                        view.setVisibility(View.VISIBLE);
                     }
                     break;
                     case BottomSheetBehavior.STATE_COLLAPSED: {
 //                        btnBottomSheet.setText("Expand Sheet");
+                        view.setVisibility(View.GONE);
                     }
                     break;
                     case BottomSheetBehavior.STATE_DRAGGING:
@@ -212,12 +255,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-
-
-
-        fetchNearbyPlaces();
-
     }
+
+
 
     private void initializeMapDatabase() {
 
@@ -238,6 +278,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         dbManager.insert("thrissur","thiruvananthapuram ","Route1","Bad Route","0.8");
         dbManager.insert("thrissur","thiruvananthapuram ","Route1","High Traffic Route","0.9");
         dbManager.insert("thrissur","thiruvananthapuram ","Route1","Nice Route","0.1");
+
+        reviewSet("alappuzha","eranamkulam","Route1","There was less restuarants on the way On the way from Alappuzha to Ernakulam,the road was smooth and then traffic was heavy");
+        reviewSet("alappuzha","eranamkulam","Route2","There was lot of restuarants on the way On the way from Alappuzha to Ernakulam,the road was smooth and then traffic was heavy");
+        reviewSet("alappuzha","eranamkulam","Route3","There was few restuarants on the way On the way from Alappuzha to Ernakulam,the road was smooth and then traffic was very smooth");
+
+        reviewSet("alappuzha","eranamkulam","Route3","There was few restuarants on the way On the way from Alappuzha to Ernakulam,the road was smooth and then traffic was crawling");
+        reviewSet("alappuzha","eranamkulam","Route2","the road was broken and then traffic was very smooth");
+        reviewSet("idukki","eranamkulam","Route2","the road was broken and then traffic was very smooth");
+
+        reviewSet("idukki","eranamkulam","Route1","There was lot of restuarants on the way On the way from Ernakulam to Idukki");
+        reviewSet("idukki","eranamkulam","Route3","There was less restuarants on the way On the way from Ernakulam to Idukki");
+        reviewSet("idukki","eranamkulam","Route3","There was less restuarants on the way On the way from Ernakulam to Idukki");
+        reviewSet("idukki","eranamkulam","Route2","the road was broken and then traffic was less");
+
+        reviewSet("palakkad","pathanamthitta","Route1","There was lot of restuarants on the way On the way from palakkad to pathanamthitta");
+        reviewSet("palakkad","pathanamthitta","Route3","There was less restuarants on the way On the way from palakkad to pathanamthitta");
+        reviewSet("palakkad","pathanamthitta","Route3","There was less restuarants on the way On the way from palakkad to pathanamthitta");
+        reviewSet("palakkad","pathanamthitta","Route2","road was easy going and then traffic was crawling");
+
+        reviewSet("thiruvananthapuram","pathanamthitta","Route2","There was lot of restuarants on the way");
+        reviewSet("thiruvananthapuram","pathanamthitta","Route1","There was less restuarants on the way On the way from");
+        reviewSet("thiruvananthapuram","pathanamthitta","Route2","road was easy going and then traffic was crawling");
+        reviewSet("thiruvananthapuram","pathanamthitta","Route3","There was more restuarants on the way On the way from");
+
+
+        reviewSet("kannur","kasaragod","Route1","There was less restuarants on the way On the way from");
+        reviewSet("kannur","kasaragod","Route2","There was lot of restuarants on the way On the way from");
+        reviewSet("kannur","kasaragod","Route3","There was more restuarants on the way On the way from");
+        reviewSet("kannur","kasaragod","Route1","road was easy going and then traffic was crawling");
+
+        reviewSet("kannur","kasaragod","Route2","the road was bumpy and then traffic was heavy ");
+
+        reviewSet("kottayam","kozhikode","Route2","the road was bumpy and then traffic was crawling");
+        reviewSet("kottayam","kozhikode","Route1","the road was bumpy and then traffic was crawling");
+        reviewSet("kottayam","kozhikode","Route3","the road was bumpy and then traffic was crawling");
+
+        reviewSet("malappuram","kozhikode","Route3","the road was bumpy and then traffic was crawling");
+        reviewSet("malappuram","kozhikode","Route1","the road was smooth and then traffic was heavy . There was few restuarants on the way");
+        reviewSet("malappuram","kozhikode","Route2"," On the way from Kozhikode to Malappuram,the road was smooth and then traffic was very smooth . There was lot of restuarants on the way");
+        reviewSet("malappuram","kozhikode","Route3","the road was bumpy and then traffic was crawling");
+        reviewSet("malappuram","kozhikode","Route1"," On the way from Kozhikode to Malappuram,the road was easy going and then traffic was heavy . There was less restuarants on the way");
+        reviewSet("malappuram","kozhikode","Route1","On the way from Kozhikode to Malappuram,the road was easy going and then traffic was crawling . There was few restuarants on the way");
 
     }
 
@@ -400,7 +482,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         LatLng endAdd = routes.get(0).endLocation;
         Log.d(TAG, String.valueOf(routes.get(0)));
+
+        myLat = endAdd.latitude;
+        myLong = endAdd.longitude;
+
 //        fetchNearbyPlaces(endAdd.latitude,endAdd.longitude);
+
+
+//        fetchNearbyPlaces(0,endAdd.latitude,endAdd.longitude);
+        fetchNearbyPlaces(4,endAdd.latitude,endAdd.longitude);
+//        fetchNearbyPlaces(2,endAdd.latitude,endAdd.longitude);
+
         recyclerView = findViewById(R.id.recyclerReview);
 
 
@@ -413,7 +505,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         List<Review> newreviewList ;
         newreviewList = dbManager.fetchData(originSt,destOr,Common.RID);
         String difScore = calculateDifficulty();
-        tvDifficultyScore.setText(difScore);
+//        tvDifficultyScore.setText(difScore);
+
+        double val= Double.parseDouble(difScore);
+        if(val<0.01 && val< 0.02 ){
+            difficultyStatus.setText("Difficult to travel");
+        } else if(val> 0.115 &&val < 0.125){
+            difficultyStatus.setText("Fair Route");
+        } else if(val< 0.115){
+            difficultyStatus.setText("bad Route");
+        } else if(val> 0.125 &&val < 0.2){
+            difficultyStatus.setText("Nice Route");
+        }  else if(val> 0.3){
+            difficultyStatus.setText("Nice Route");
+        }else if(val > 0.7 && val< 0.9){
+            difficultyStatus.setText("Fair Route");
+        } else if(val > 0.9 && val< 1){
+            difficultyStatus.setText("Very Good Route");
+        }else if(val == 1){
+            difficultyStatus.setText("Good Route");
+        }
 
         mAdapter = new ReviewAdapter(newreviewList,MapsActivity.this);
         RecyclerView.LayoutManager mLayoutManager = new LinearLayoutManager(getApplicationContext());
@@ -494,7 +605,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 String review = edAddReview.getText().toString();
                 if(!review.isEmpty()){
                     String dScore = getDifficultyScore(review);
-                    dbManager.insert(originSt,destOr,Common.RID,review,"20");
+                    dbManager.insert(originSt,destOr,Common.RID,review,dScore);
+                    dbManager.insert(destOr,originSt,Common.RID,review,dScore);
                     setReviewList();
                     Toast.makeText(MapsActivity.this,"Review Added",Toast.LENGTH_SHORT).show();
                 }
@@ -511,29 +623,84 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+    private void reviewSet(String from,String to, String rid,String review){
+        String dScore = getDifficultyScore(review);
+        dbManager.insert(from,to,rid,review,dScore);
+        dbManager.insert(from,to,rid,review,dScore);
+    }
     private String getDifficultyScore(String review) {
-        String newScore = "";
+        String newScore = "0";
+
+        int x = 0;
 
         if(review.toLowerCase().contains("very bad")){
             newScore = "0.8";
-        } else if(review.toLowerCase().contains("bad")){
-            newScore = "0.6";
-        } else  if(review.toLowerCase().contains("traffic")){
-            newScore = "0.7";
-        } else  if( review.toLowerCase().contains("nice")){
-            newScore = "0.3";
-        } else  if( review.toLowerCase().contains("good")){
-            newScore = "0.1";
-        } else  if (review.toLowerCase().contains("heavy")){
-            newScore = "0.8";
-        } else  if(review.toLowerCase().contains("bad road")){
-            newScore = "0.7";
-        } else if (review.toLowerCase().contains("conjunction")) {
-            newScore = "0.4";
-        } else if (review.toLowerCase().contains("rush")){
-            newScore = "0.6";
+            x = x + 1;
+        } if(review.toLowerCase().contains("bumpy")){
+            newScore = "0.5";
+            x = x + 1;
         }
-        return  newScore;
+         if(review.toLowerCase().contains("bad")){
+            newScore = "0.6";
+             x = x + 1;
+
+         }  if(review.toLowerCase().contains("bumpy")){
+            newScore = "0.5";
+            x = x + 1;
+
+        }   if(review.toLowerCase().contains("traffic")){
+            newScore = "0.4";
+            x = x + 1;
+
+        }   if( review.toLowerCase().contains("nice")){
+            newScore = "0.3";
+            x = x + 1;
+        }   if( review.toLowerCase().contains("good")){
+            newScore = "0.1";
+            x = x + 1;
+        }   if (review.toLowerCase().contains("heavy")){
+            newScore = "0.8";
+            x = x + 1;
+        }   if(review.toLowerCase().contains("bad road")){
+            newScore = "0.7";
+            x = x + 1;
+        }  if (review.toLowerCase().contains("conjunction")) {
+            newScore = "0.4";
+            x = x + 1;
+        }  if (review.toLowerCase().contains("rush")){
+            newScore = "0.6";
+            x = x + 1;
+        } if(review.toLowerCase().contains("smooth")){
+            newScore = "0.2";
+            x = x + 1;
+        } if(review.toLowerCase().contains("very smooth")){
+            newScore = "0.3";
+            x = x + 1;
+        }
+        if(review.toLowerCase().contains("crawling")){
+            newScore = "0.3";
+            x = x + 1;
+        }
+        if(review.toLowerCase().contains("easy going")){
+            newScore = "0.3";
+            x = x + 1;
+        }
+
+        if(review.toLowerCase().contains("")){
+            newScore = "0.3";
+            x = x + 1;
+        }
+
+        double nv= Double.parseDouble(newScore);
+         if(nv == 0){
+             nv = 0.5;
+         }
+         if(x == 0){
+             x =1;
+         }
+
+         double newDifficulty = nv/x;
+        return String.valueOf(newDifficulty);
     }
 
     /* Initialize popup dialog view and ui controls in the popup dialog. */
@@ -555,15 +722,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 //    private void fetchNearbyPlaces(double latitude,double longitude){
-    private void fetchNearbyPlaces(){
-        double latitude = -33.8670522;
-        double longitude = 151.1957362;
-        String type = "food";
+    private void fetchNearbyPlaces(int types,double latitude, double longitude){
 
+        String url = "";
 
-        String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"food"+"&key=" +GOOGLE_BROWSER_API_KEY;
+        if(types == 0){
+            type = "food";
+            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"restaurant"+"&key=" +GOOGLE_BROWSER_API_KEY;
+        } else if(types == 1){
+            type = "room";
+            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"room"+"&key=" +GOOGLE_BROWSER_API_KEY;
+        } else if(types == 2){
+            type = "petrol pump";
+            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"gas_station"+"&key=" +GOOGLE_BROWSER_API_KEY;
+        } else  if(types == 3){
+            type = "movie_theater";
+            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"movie_theater"+"&key=" +GOOGLE_BROWSER_API_KEY;
+        }else  if(types == 4){
+            type = "shopping";
+            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"shopping_mall"+"&key=" +GOOGLE_BROWSER_API_KEY;
+        }
 
         RequestQueue requestQueue = Volley.newRequestQueue(MapsActivity.this);
+        progressDialog = ProgressDialog.show(this, "Please wait", "Finding " + type, true);
 
         JsonObjectRequest request = new JsonObjectRequest(
                 Request.Method.GET,
@@ -574,7 +755,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     public void onResponse(JSONObject response) {
                         // Do something with response
                         //mTextView.setText(response.toString());
-                        List<Marker> markersList = new ArrayList<Marker>();
 
                         String placeName = "-NA-";
                         String vicinity = "-NA-";
@@ -593,7 +773,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 LatLng latLng = new LatLng(lati, lngi);
 
                                 MarkerOptions markerOptions = new MarkerOptions();
-//                                JSONObject placeName = object.getJSONObject("name");
 
                                 if (!object.isNull("name")) {
                                     placeName = object.getString("name");
@@ -602,35 +781,52 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                     vicinity = object.getString("vicinity");
                                 }
 
-                                Log.d("Tagasad", String.valueOf(latLng));
 
-//                                Object vicinity = object.get("vicinity");
                                 markerOptions.position(latLng);
+
                                 markerOptions.title(placeName + " : " + vicinity);
-                                markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
 
-                                Marker models=  mMap.addMarker(markerOptions);
+                                if(type.equals("food")){
+                                    markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this,R.drawable.ic_local_cafe_black_24dp));
+                                    markerOptions.snippet(type);
+                                }else  if(type.equals("shopping")){
+                                    markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this,R.drawable.ic_local_mall_black_24dp));
+                                    markerOptions.snippet(type);
+                                }  else  if(type.equals("movie_theater")){
+                                    markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this,R.drawable.ic_local_movies_black_24dp));
+                                    markerOptions.snippet(type);
+                                } else  if(type.equals("petrol pump")){
+                                    markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this,R.drawable.ic_ev_station_black_24dp));
+                                    markerOptions.snippet(type);
+                                }else  if(type.equals("room")){
+                                    markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this,R.drawable.ic_local_hotel_black_24dp));
+                                    markerOptions.snippet(type);
+                                } else {
+                                    markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+                                }
+//                                markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+                                mMap.addMarker(markerOptions);
 
-                                markersList.add(models);
+//                                markersList.add(models);
 
                             }
-
+                            progressDialog.dismiss();
 
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
 
-                        /**create for loop for get the latLngbuilder from the marker list*/
-                        LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                        for (Marker m : markersList) {
-                            builder.include(m.getPosition());
-                        }
-                        /**initialize the padding for map boundary*/
-                        int padding = 50;
-                        /**create the bounds from latlngBuilder to set into map camera*/
-                        LatLngBounds bounds = builder.build();
-                        /**create the camera with bounds and padding to set into map*/
-                        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
+//                        /**create for loop for get the latLngbuilder from the marker list*/
+//                        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+//                        for (Marker m : markersList) {
+//                            builder.include(m.getPosition());
+//                        }
+//                        /**initialize the padding for map boundary*/
+//                        int padding = 50;
+//                        /**create the bounds from latlngBuilder to set into map camera*/
+//                        LatLngBounds bounds = builder.build();
+//                        /**create the camera with bounds and padding to set into map*/
+//                        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
 
                         // Process the JSON
 
@@ -648,7 +844,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         requestQueue.add(request);
     }
-
+    private BitmapDescriptor bitmapDescriptorFromVector(Context context, @DrawableRes int vectorDrawableResourceId) {
+        Drawable vectorDrawable = ContextCompat.getDrawable(context, vectorDrawableResourceId);
+        vectorDrawable.setBounds(0, 0, vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight());
+        Bitmap bitmap = Bitmap.createBitmap(vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        vectorDrawable.draw(canvas);
+        return BitmapDescriptorFactory.fromBitmap(bitmap);
+    }
     private void parseLocationResult(JSONObject result) {
 
     }
