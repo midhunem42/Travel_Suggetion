@@ -12,6 +12,9 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.location.Address;
+import android.location.Criteria;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -34,6 +37,7 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -59,6 +63,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.neuroid.gmap.Common.Common;
+import com.neuroid.gmap.Common.ScoreGeneration;
 import com.neuroid.gmap.Modules.DirectionFinder;
 import com.neuroid.gmap.Modules.DirectionFinderListener;
 import com.neuroid.gmap.Modules.PolylineData;
@@ -74,11 +79,14 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, DirectionFinderListener, GoogleApiClient.OnConnectionFailedListener, GoogleMap.OnPolylineClickListener {
+public class MapsActivity extends FragmentActivity implements LocationListener,OnMapReadyCallback, DirectionFinderListener, GoogleApiClient.OnConnectionFailedListener, GoogleMap.OnPolylineClickListener {
 
 
     @Override
@@ -88,7 +96,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private static final int LOCATION_REQUEST = 500;
     private GoogleMap mMap;
-    private Button btnFindPath;
+    private Button btnFindPath,currentLocation;
     private AutoCompleteTextView editTextOrigin;
     private AutoCompleteTextView editTextDestination;
     private TextView tvDistance, tvDuration, tvFrom, tvDestination, tvDifficultyScore,difficultyStatus;
@@ -115,6 +123,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     ImageButton movie, cafe, rooms, petrol, mall;
     double myLat=10.530345, myLong=76.214729;
+    double currentLat, currentLong;
+    ImageView myLocationInput1,myLocationInput2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -137,6 +147,43 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         petrol = findViewById(R.id.petrolPlace);
         mall = findViewById(R.id.mallPlace);
         difficultyStatus = findViewById(R.id.difficultyStatus);
+        currentLocation = findViewById(R.id.currentLocation);
+        myLocationInput1 = findViewById(R.id.myLocationInput1);
+        myLocationInput2 = findViewById(R.id.myLocationInput2);
+
+        myLocationInput1.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Geocoder geocoder;
+                List<Address> addresses = null;
+                geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
+                try {
+                    addresses = geocoder.getFromLocation(currentLat, currentLong, 1); // Here 1 represent max location result to returned, by documents it recommended 1 to 5
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                Log.d("Tagsss0", String.valueOf(addresses.get(0).getAddressLine(0)));
+                String origin = addresses.get(0).getAddressLine(0);
+                editTextOrigin.setText(origin);
+            }
+        });
+
+        myLocationInput2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Geocoder geocoder;
+                List<Address> addresses = null;
+                geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
+                try {
+                    addresses = geocoder.getFromLocation(currentLat, currentLong, 1); // Here 1 represent max location result to returned, by documents it recommended 1 to 5
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                Log.d("Tagsss0", String.valueOf(addresses.get(0).getAddressLine(0)));
+                String origin = addresses.get(0).getAddressLine(0);
+                editTextDestination.setText(origin);
+            }
+        });
 
         cafe.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -212,6 +259,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 View view = getCurrentFocus();
                 if (view != null) {
                     InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    assert imm != null;
                     imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
                 }
                 sendRequest();
@@ -233,7 +281,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     case BottomSheetBehavior.STATE_HIDDEN:
                         break;
                     case BottomSheetBehavior.STATE_EXPANDED: {
-//                        btnBottomSheet.setText("Close Sheet");
                         view.setVisibility(View.VISIBLE);
                     }
                     break;
@@ -261,23 +308,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void initializeMapDatabase() {
 
-        dbManager.insert("thrissur","akkikkavu","Route1","Nice Route","0.2");
-        dbManager.insert("thrissur","akkikkavu","Route1","Bad Route","0.6");
-        dbManager.insert("thrissur","akkikkavu","Route1","Good Road","0.3");
-        dbManager.insert("thrissur","akkikkavu","Route2","Traffic Route","0.8");
-        dbManager.insert("thrissur","akkikkavu","Route2","Very Bad Route","0.7");
-        dbManager.insert("thrissur","akkikkavu","Route2","Satisfactory Route","0.5");
-
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Satisfactory Route","0.5");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Bad Route","0.6");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","High Traffic Route","0.8");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route2","Nice Route","0.1");
+        reviewSet("thrissur","akkikkavu","Route1","Nice Route");
+        reviewSet("thrissur","akkikkavu","Route1","Bad Route");
+        reviewSet("thrissur","akkikkavu","Route1","Good Route");
 
 
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Satisfactory Route","0.5");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Bad Route","0.8");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","High Traffic Route","0.9");
-        dbManager.insert("thrissur","thiruvananthapuram ","Route1","Nice Route","0.1");
+        reviewSet("thrissur","akkikkavu","Route2","Traffic Route");
+        reviewSet("thrissur","akkikkavu","Route2","Very Bad Route");
+        reviewSet("thrissur","akkikkavu","Route2","Satisfactory Route");
+
+        reviewSet("thrissur","thiruvananthapuram","Route1","Nice Route");
+        reviewSet("thrissur","thiruvananthapuram","Route1","Bad Route");
+        reviewSet("thrissur","thiruvananthapuram","Route1","High Traffic Route");
+        reviewSet("thrissur","thiruvananthapuram","Route1","Satisfactory Route");
+
+        reviewSet("thrissur","thiruvananthapuram","Route2","Nice Route");
+        reviewSet("thrissur","thiruvananthapuram","Route2","Bad Route");
+        reviewSet("thrissur","thiruvananthapuram","Route2","High Traffic Route");
+        reviewSet("thrissur","thiruvananthapuram","Route2","Satisfactory Route");
 
         reviewSet("alappuzha","eranamkulam","Route1","There was less restuarants on the way On the way from Alappuzha to Ernakulam,the road was smooth and then traffic was heavy");
         reviewSet("alappuzha","eranamkulam","Route2","There was lot of restuarants on the way On the way from Alappuzha to Ernakulam,the road was smooth and then traffic was heavy");
@@ -304,8 +352,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
         reviewSet("kannur","kasaragod","Route1","There was less restuarants on the way On the way from");
-        reviewSet("kannur","kasaragod","Route2","There was lot of restuarants on the way On the way from");
-        reviewSet("kannur","kasaragod","Route3","There was more restuarants on the way On the way from");
+        reviewSet("kannur","kasaragod","Route1","There was lot of restuarants on the way On the way from");
+        reviewSet("kannur","kasaragod","Route1","There was more restuarants on the way On the way from");
         reviewSet("kannur","kasaragod","Route1","road was easy going and then traffic was crawling");
 
         reviewSet("kannur","kasaragod","Route2","the road was bumpy and then traffic was heavy ");
@@ -313,13 +361,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         reviewSet("kottayam","kozhikode","Route2","the road was bumpy and then traffic was crawling");
         reviewSet("kottayam","kozhikode","Route1","the road was bumpy and then traffic was crawling");
         reviewSet("kottayam","kozhikode","Route3","the road was bumpy and then traffic was crawling");
+        reviewSet("kottayam","kozhikode","Route1","road was easy going and then traffic was crawling");
+
+
 
         reviewSet("malappuram","kozhikode","Route3","the road was bumpy and then traffic was crawling");
         reviewSet("malappuram","kozhikode","Route1","the road was smooth and then traffic was heavy . There was few restuarants on the way");
-        reviewSet("malappuram","kozhikode","Route2"," On the way from Kozhikode to Malappuram,the road was smooth and then traffic was very smooth . There was lot of restuarants on the way");
+        reviewSet("malappuram","kozhikode","Route2","On the way from Kozhikode to Malappuram,the road was smooth and then traffic was very smooth . There was lot of restuarants on the way");
         reviewSet("malappuram","kozhikode","Route3","the road was bumpy and then traffic was crawling");
-        reviewSet("malappuram","kozhikode","Route1"," On the way from Kozhikode to Malappuram,the road was easy going and then traffic was heavy . There was less restuarants on the way");
         reviewSet("malappuram","kozhikode","Route1","On the way from Kozhikode to Malappuram,the road was easy going and then traffic was crawling . There was few restuarants on the way");
+        reviewSet("malappuram","kozhikode","Route1","On the way from Kozhikode to Malappuram,the road was easy going and then traffic was crawling . There was les restuarants on the way");
+
+        reviewSet("kottayam","kozhikode","Route1","On the way from Kottayam to Kozhikode,the road was bad and then traffic was less . There was few restuarants on the way");
+        reviewSet("kottayam","kozhikode","Route2","On the way from Kottayam to Kozhikode,the road was bad and then traffic was high . There was more restuarants on the way");
+
 
     }
 
@@ -337,6 +392,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             return;
         }
         try {
+            mMap.clear();
             new DirectionFinder(this, origin, destination).execute();
         } catch (Exception e) {
             e.printStackTrace();
@@ -365,6 +421,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setMyLocationEnabled(true);
         mMap.setOnPolylineClickListener(this);
 
+        LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        Criteria criteria = new Criteria();
+        assert locationManager != null;
+        String bestProvider = locationManager.getBestProvider(criteria, true);
+        Location location = locationManager.getLastKnownLocation(bestProvider);
+        if (location != null) {
+            onLocationChanged(location);
+        }
+        locationManager.requestLocationUpdates(bestProvider, 20000, 0, this);
+
+        currentLocation.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                myLat = currentLat;
+                myLong = currentLong;
+                mMap.clear();
+            }
+        });
     }
 
 
@@ -486,44 +560,40 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         myLat = endAdd.latitude;
         myLong = endAdd.longitude;
 
-//        fetchNearbyPlaces(endAdd.latitude,endAdd.longitude);
-
-
-//        fetchNearbyPlaces(0,endAdd.latitude,endAdd.longitude);
-        fetchNearbyPlaces(4,endAdd.latitude,endAdd.longitude);
-//        fetchNearbyPlaces(2,endAdd.latitude,endAdd.longitude);
-
         recyclerView = findViewById(R.id.recyclerReview);
-
-
         setReviewList();
-
-
     }
 
     private void setReviewList() {
-        List<Review> newreviewList ;
-        newreviewList = dbManager.fetchData(originSt,destOr,Common.RID);
+        List<Review> newreviewList;
+        newreviewList = dbManager.fetchData(originSt, destOr, Common.RID);
         String difScore = calculateDifficulty();
-//        tvDifficultyScore.setText(difScore);
+        DecimalFormat df = new DecimalFormat("0.00");
+        double dfVal = Double.parseDouble(difScore);
 
-        double val= Double.parseDouble(difScore);
-        if(val<0.01 && val< 0.02 ){
+        String diffOutof5 = df.format(dfVal)+ " / 5";
+        tvDifficultyScore.setText(diffOutof5);
+        double val = Double.parseDouble(difScore);
+        if(val>= 0 && val< 1 ){
             difficultyStatus.setText("Difficult to travel");
-        } else if(val> 0.115 &&val < 0.125){
+        } else if(val>= 1 && val < 1.25) {
+            difficultyStatus.setText("Very Bad Route");
+        } else if(val>= 1.25 && val < 1.75) {
+            difficultyStatus.setText("Poor Route");
+        } else if(val>= 1.75 && val < 2.0) {
             difficultyStatus.setText("Fair Route");
-        } else if(val< 0.115){
-            difficultyStatus.setText("bad Route");
-        } else if(val> 0.125 &&val < 0.2){
-            difficultyStatus.setText("Nice Route");
-        }  else if(val> 0.3){
-            difficultyStatus.setText("Nice Route");
-        }else if(val > 0.7 && val< 0.9){
+        } else if(val>= 2.0 && val < 2.25) {
             difficultyStatus.setText("Fair Route");
-        } else if(val > 0.9 && val< 1){
-            difficultyStatus.setText("Very Good Route");
-        }else if(val == 1){
+        } else if(val>= 2.25 && val < 2.75) {
+            difficultyStatus.setText("Nice Route");
+        } else if(val>= 2.75 && val < 3.25) {
             difficultyStatus.setText("Good Route");
+        } else if(val>= 3.25 && val < 3.75) {
+            difficultyStatus.setText("Very Good Route");
+        } else if(val>= 3.75 && val < 4.25) {
+            difficultyStatus.setText("Best Route to travel");
+        } else if(val>= 4.25 && val <= 5) {
+            difficultyStatus.setText("Best route");
         }
 
         mAdapter = new ReviewAdapter(newreviewList,MapsActivity.this);
@@ -543,9 +613,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         int scoreList = difficultyList.size();
         double value = 0;
 
-        if(scoreList ==0){
-            scoreList =1;
-            value = 0.5;
+        if(scoreList == 0){
+            scoreList = 1;
+            value = 2.5;
         }
 
         for(Difficulty difficulty:difficultyList){
@@ -554,6 +624,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         value = value/scoreList;
+        Log.d("Calculating score", String.valueOf(value));
         return String.valueOf(value);
     }
 
@@ -572,7 +643,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 tvDistance.setText(polylineDataClick.getRoute().distance.text);
                 Common.RID = polylineDataClick.getRid();
                 setReviewList();
-
             }
             else {
                 polylineDataClick.getPolyline().setColor(ContextCompat.getColor(getApplicationContext(),R.color.darkgrey));
@@ -604,11 +674,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 String review = edAddReview.getText().toString();
                 if(!review.isEmpty()){
-                    String dScore = getDifficultyScore(review);
-                    dbManager.insert(originSt,destOr,Common.RID,review,dScore);
-                    dbManager.insert(destOr,originSt,Common.RID,review,dScore);
+                    reviewSet(originSt,destOr,Common.RID,review);
                     setReviewList();
-                    Toast.makeText(MapsActivity.this,"Review Added",Toast.LENGTH_SHORT).show();
                 }
                 alertDialog.cancel();
             }
@@ -624,104 +691,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void reviewSet(String from,String to, String rid,String review){
-        String dScore = getDifficultyScore(review);
+        String dScore = ScoreGeneration.getDifficultyScore(review);
         dbManager.insert(from,to,rid,review,dScore);
-        dbManager.insert(from,to,rid,review,dScore);
+        dbManager.insert(to,from,rid,review,dScore);
     }
-    private String getDifficultyScore(String review) {
-        String newScore = "0";
 
-        int x = 0;
-
-        if(review.toLowerCase().contains("very bad")){
-            newScore = "0.8";
-            x = x + 1;
-        } if(review.toLowerCase().contains("bumpy")){
-            newScore = "0.5";
-            x = x + 1;
-        }
-         if(review.toLowerCase().contains("bad")){
-            newScore = "0.6";
-             x = x + 1;
-
-         }  if(review.toLowerCase().contains("bumpy")){
-            newScore = "0.5";
-            x = x + 1;
-
-        }   if(review.toLowerCase().contains("traffic")){
-            newScore = "0.4";
-            x = x + 1;
-
-        }   if( review.toLowerCase().contains("nice")){
-            newScore = "0.3";
-            x = x + 1;
-        }   if( review.toLowerCase().contains("good")){
-            newScore = "0.1";
-            x = x + 1;
-        }   if (review.toLowerCase().contains("heavy")){
-            newScore = "0.8";
-            x = x + 1;
-        }   if(review.toLowerCase().contains("bad road")){
-            newScore = "0.7";
-            x = x + 1;
-        }  if (review.toLowerCase().contains("conjunction")) {
-            newScore = "0.4";
-            x = x + 1;
-        }  if (review.toLowerCase().contains("rush")){
-            newScore = "0.6";
-            x = x + 1;
-        } if(review.toLowerCase().contains("smooth")){
-            newScore = "0.2";
-            x = x + 1;
-        } if(review.toLowerCase().contains("very smooth")){
-            newScore = "0.3";
-            x = x + 1;
-        }
-        if(review.toLowerCase().contains("crawling")){
-            newScore = "0.3";
-            x = x + 1;
-        }
-        if(review.toLowerCase().contains("easy going")){
-            newScore = "0.3";
-            x = x + 1;
-        }
-
-        if(review.toLowerCase().contains("")){
-            newScore = "0.3";
-            x = x + 1;
-        }
-
-        double nv= Double.parseDouble(newScore);
-         if(nv == 0){
-             nv = 0.5;
-         }
-         if(x == 0){
-             x =1;
-         }
-
-         double newDifficulty = nv/x;
-        return String.valueOf(newDifficulty);
-    }
 
     /* Initialize popup dialog view and ui controls in the popup dialog. */
     private void initPopupViewControls()
     {
+
         // Get layout inflater object.
         LayoutInflater layoutInflater = LayoutInflater.from(MapsActivity.this);
-
         // Inflate the popup dialog from a layout xml file.
         popupInputDialogView = layoutInflater.inflate(R.layout.add_review, null);
 
-        // Get user input edittext and button ui controls in the popup dialog.
         edAddReview = popupInputDialogView.findViewById(R.id.edAddReview);
         addReview = popupInputDialogView.findViewById(R.id.btnSubmitReview);
         CancelButton = popupInputDialogView.findViewById(R.id.btnCancel);
 
-        // Display values from the main activity list view in user input edittext.
-//        initEditTextUserDataInPopupDialog();
     }
 
-//    private void fetchNearbyPlaces(double latitude,double longitude){
     private void fetchNearbyPlaces(int types,double latitude, double longitude){
 
         String url = "";
@@ -731,7 +721,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"restaurant"+"&key=" +GOOGLE_BROWSER_API_KEY;
         } else if(types == 1){
             type = "room";
-            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"room"+"&key=" +GOOGLE_BROWSER_API_KEY;
+            url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"lodging"+"&key=" +GOOGLE_BROWSER_API_KEY;
         } else if(types == 2){
             type = "petrol pump";
             url ="https://maps.googleapis.com/maps/api/place/nearbysearch/json?location="+ latitude +","+ longitude+"&rankby=distance&type="+"gas_station"+"&key=" +GOOGLE_BROWSER_API_KEY;
@@ -754,7 +744,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     @Override
                     public void onResponse(JSONObject response) {
                         // Do something with response
-                        //mTextView.setText(response.toString());
 
                         String placeName = "-NA-";
                         String vicinity = "-NA-";
@@ -804,10 +793,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 } else {
                                     markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
                                 }
-//                                markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
                                 mMap.addMarker(markerOptions);
-
-//                                markersList.add(models);
 
                             }
                             progressDialog.dismiss();
@@ -816,17 +802,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             e.printStackTrace();
                         }
 
-//                        /**create for loop for get the latLngbuilder from the marker list*/
-//                        LatLngBounds.Builder builder = new LatLngBounds.Builder();
-//                        for (Marker m : markersList) {
-//                            builder.include(m.getPosition());
-//                        }
-//                        /**initialize the padding for map boundary*/
-//                        int padding = 50;
-//                        /**create the bounds from latlngBuilder to set into map camera*/
-//                        LatLngBounds bounds = builder.build();
-//                        /**create the camera with bounds and padding to set into map*/
-//                        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
+                        LatLng latLng = new LatLng(myLat, myLong);
+
+                        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+                        mMap.animateCamera(CameraUpdateFactory.zoomTo(14));
 
                         // Process the JSON
 
@@ -857,4 +836,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
+    @Override
+    public void onLocationChanged(Location location) {
+        currentLat = location.getLatitude();
+        currentLong = location.getLongitude();
+    }
+
+    @Override
+    public void onStatusChanged(String provider, int status, Bundle extras) {
+
+    }
+
+    @Override
+    public void onProviderEnabled(String provider) {
+
+    }
+
+    @Override
+    public void onProviderDisabled(String provider) {
+
+    }
+
+    @Override
+    public void onPointerCaptureChanged(boolean hasCapture) {
+
+    }
 }
